@@ -2,39 +2,14 @@ use std::sync::{Arc, Mutex};
 
 use hickory_resolver::{system_conf::read_system_conf, TokioAsyncResolver};
 use tokio::task;
-use tracing::{
-    debug, error, info, info_span,
-    instrument::{self, WithSubscriber},
-    Instrument, Level,
-};
-use tracing_subscriber::{
-    filter,
-    fmt::{self, MakeWriter},
-    layer::SubscriberExt,
-    util::SubscriberInitExt,
-    Layer, Registry,
-};
-
-fn filtered_layer<W>(writer: W, is_terminal: bool) -> impl Layer<Registry>
-where
-    W: for<'writer> MakeWriter<'writer> + 'static,
-{
-    let filter = filter::Targets::new()
-        .with_default(Level::WARN) //filter out external crates
-        .with_target(env!("CARGO_PKG_NAME"), Level::INFO);
-    tracing_subscriber::fmt::layer::<Registry>()
-        .with_writer(writer)
-        .with_ansi(is_terminal)
-        .with_filter(filter)
-}
+use tracing::{debug, error, info, info_span, instrument::WithSubscriber, Instrument};
+use tracing_subscriber::util::SubscriberInitExt;
 
 #[tokio::main]
 async fn main() {
-    // Create the main tracing subscriber that logs to stdout
-    let stdout_subscriber =
-        tracing_subscriber::registry().with(filtered_layer(std::io::stdout, true));
-
-    // Set this subscriber as the default for the rest of the application
+    let stdout_subscriber = tracing_subscriber::fmt()
+        .with_writer(std::io::stdout)
+        .finish();
     stdout_subscriber.init();
 
     info!("started!");
@@ -48,7 +23,7 @@ async fn main() {
     });
 
     let mut set = task::JoinSet::new();
-    for i in 0..10000 {
+    for i in 0..100 {
         set.spawn(some_task(format!("task {i}"), resolver.clone()));
     }
 
@@ -62,13 +37,14 @@ async fn some_task(task_name: String, resolver: Arc<TokioAsyncResolver>) {
 
     Box::pin(async move {
         let buffer = Vec::new();
-        let stderr_subscriber =
-            tracing_subscriber::registry().with(filtered_layer(Mutex::new(buffer), false));
+        let buffered_subscriber = tracing_subscriber::fmt()
+            .with_writer(Mutex::new(buffer))
+            .finish();
 
         debug!("filtered task");
 
         let _res = deeper(task_name, resolver)
-            .with_subscriber(stderr_subscriber)
+            .with_subscriber(buffered_subscriber)
             .await;
     })
     .instrument(span)
