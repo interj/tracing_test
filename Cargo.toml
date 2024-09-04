@@ -7,3 +7,5 @@ edition = "2021"
 tracing = "0.1"
 tracing-subscriber = "0.3"
 tokio = { version = "1", features = ["full"] }
+log_buffer = "1.2.0"
+hickory-resolver = "0.24.1"
