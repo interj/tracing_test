@@ -23,13 +23,13 @@ async fn main() {
     });
 
     let mut set = task::JoinSet::new();
-    for i in 0..100 {
+    for i in 0..10 {
         set.spawn(some_task(format!("task {i}"), resolver.clone()));
     }
 
-    let _ = set.join_all();
+    let result = set.join_all();
 
-    info!("finished!");
+    info!("finished! {}", result.await.len());
 }
 
 async fn some_task(task_name: String, resolver: Arc<TokioAsyncResolver>) {
